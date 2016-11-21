@@ -1,0 +1,101 @@
+---
+title: "notebook20161121"
+author: "Mark Hagemann"
+date: "November 21, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+Start with current Pepsi and list of issues.
+
+1. Many rivers had highly negative dA values. I get around this by subtracting the minimum from each dataset's dA.
+2. Several rivers have zero-slopes for some cross-sections. I omitted these cross-sections from the computation.
+3. Rivers with a lot of cross-sections (e.g. Mississippi) are very slow to run, and I just grabbed a subset of cross-sections when running the algorithm.
+4. Many rivers are missing all but a single observed Q value. These are: MS (DS and US), Kanawha, Sacramento US, St. Lawrence (US and DS), Wabash
+5. Kanawha widths are unrealistically large (>10km)
+6. Platte is missing all dA values. Presumably because it is also missing 5 H values.
+7. Tanana is missing Q for all but one cross-section, and the one cross-section (number 1) that does have Q extends the Q series beyond the times where it has W, S, etc. observations, resulting in missing values for these.
+8. Connecticut doesn't work for the same reasons as before.
+
+Tackle issues in this order: 4, 5, 6, 7
+
+```{r}
+badQrivs <- c("MississippiDownstream", "MississippiUpstream", "Kanawha",
+              "SacramentoUpstream", "StLawrenceDownstream", 
+              "StLawrenceUpstream", "Wabash")
+PepsiNames <- sapply(Pepsi1, function(pc) pc[[1]][[1]])
+badQinds <- match(badQrivs, PepsiNames)
+```
+
+```{r}
+i <- i + 1
+
+list.files(sprintf("data/%s", badQrivs[i]))
+```
+
+All except Sacramento upstream have .mat files.
+
+```{r}
+qfiles <- c("LowerMiss.mat", "UpperMiss.mat", "Kanawha.mat", 
+            "upsacQ.xlsx", "downstreamData.mat", 
+            "upstreamData.mat", "Wabash.mat")
+qpaths <- paste("data", badQrivs, qfiles, sep = "/")
+```
+
+See how the tree-structured data looks
+
+```{r}
+Pepsi1[badQinds[1]]
+```
+
+
+```{r}
+i <- i + 1
+rivi <- badQinds[i]
+# foo <- getPepsiData(Pepsi1[[rivi]])
+
+Pepsi1[[rivi]]%>% 
+  str()
+
+# sapply(Pepsi0[[1]], length) # they're all length 1 -- nothing hiding.
+```
+
+So I need to add a 2-D numeric matrix with space down, time across.
+
+```{r}
+qpaths
+origs <- lapply(qpaths[-4], readMat)
+
+getQ <- function(path) {
+  if (!grepl("\\.mat$", path))
+    return(NA)
+  out0 <- readMat(path)
+  out1 <- out0[["Qall"]]
+  out1
+}
+
+origQ <- lapply(qpaths, getQ)
+
+putQ <- function(Pepsi1_, riverind, qmatrix) {
+  Pepsi1_[[riverind]][[1]][,,1]$Q <- qmatrix
+  out <- Pepsi1_
+}
+
+foo <- putQ(Pepsi1_ = Pepsi1, riverind = 15, qmatrix = origQ[[1]])
+
+```
+
+
+```{r}
+qfiles <- c("LowerMiss.mat", "UpperMiss.mat", "Kanawha.mat", 
+            "upsacQ.xlsx", "downstreamData.mat", 
+            "upstreamData.mat", "Wabash.mat")
+qpaths <- paste("data", badQrivs, qfiles, sep = "/")
+
+
+```
+
