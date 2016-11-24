@@ -26,9 +26,11 @@ Tackle issues in this order: 4, 5, 6, 7
 ```{r}
 badQrivs <- c("MississippiDownstream", "MississippiUpstream", "Kanawha",
               "SacramentoUpstream", "StLawrenceDownstream", 
-              "StLawrenceUpstream", "Wabash")
+              "StLawrenceUpstream", "Tanana", "Wabash")
 PepsiNames <- sapply(Pepsi1, function(pc) pc[[1]][[1]])
 badQinds <- match(badQrivs, PepsiNames)
+
+i <- 0
 ```
 
 ```{r}
@@ -42,7 +44,7 @@ All except Sacramento upstream have .mat files.
 ```{r}
 qfiles <- c("LowerMiss.mat", "UpperMiss.mat", "Kanawha.mat", 
             "upsacQ.xlsx", "downstreamData.mat", 
-            "upstreamData.mat", "Wabash.mat")
+            "upstreamData.mat", "alltruth7.txt", "Wabash.mat")
 qpaths <- paste("data", badQrivs, qfiles, sep = "/")
 ```
 
@@ -68,34 +70,491 @@ So I need to add a 2-D numeric matrix with space down, time across.
 
 ```{r}
 qpaths
-origs <- lapply(qpaths[-4], readMat)
+qmats <- grepl("\\.mat$", qpaths)
+origs <- lapply(qpaths[qmats], readMat)
 
-getQ <- function(path) {
+getQ <- function(path, qname = "Qall") {
   if (!grepl("\\.mat$", path))
     return(NA)
   out0 <- readMat(path)
-  out1 <- out0[["Qall"]]
+  out1 <- out0[[qname]]
   out1
 }
 
-origQ <- lapply(qpaths, getQ)
+qnames <- c(rep("Qall", 3), "Q", "Q", "Qall")
+origQ <- mapply(getQ, path = qpaths[qmats], qname = qnames)
+
+toRotate <- c(1:3, 6)
+origQ[toRotate] <- lapply(origQ[toRotate], t)
+lapply(origQ, class)
+
+lapply(origQ, dim)
 
 putQ <- function(Pepsi1_, riverind, qmatrix) {
+  # qmatrix <- t(qmatrix)
   Pepsi1_[[riverind]][[1]][,,1]$Q <- qmatrix
   out <- Pepsi1_
 }
 
 foo <- putQ(Pepsi1_ = Pepsi1, riverind = 15, qmatrix = origQ[[1]])
+```
+
+Now replace each
+
+```{r}
+# i <- i + 1
+# qpaths
+# badQinds
+Pepsi2 <- Pepsi1
+for (i in 1:length(badQinds)) {
+  Pepsi2 <- putQ(Pepsi1_ = Pepsi2, riverind = badQinds[i], qmatrix = origQ[[i]])
+  print(i)
+}
 
 ```
 
 
 ```{r}
-qfiles <- c("LowerMiss.mat", "UpperMiss.mat", "Kanawha.mat", 
-            "upsacQ.xlsx", "downstreamData.mat", 
-            "upstreamData.mat", "Wabash.mat")
-qpaths <- paste("data", badQrivs, qfiles, sep = "/")
+plotQ <- function(Pepsi1_) {
+  
+  gdat <- lapply(Pepsi1_[badQinds], getPepsiData) %>% 
+    setNames(badQrivs) %>% 
+    bind_rows(.id = "river") %>% 
+    arrange(time, xs, river) %>% 
+    filter(xs == 1)
+  
+  out <- ggplot(gdat, aes(x = time, y = Q)) + 
+    geom_line() + 
+    facet_wrap(~river, scales = "free")
+  out
+}
+```
 
+```{r}
+plotQ(Pepsi2)
+
+```
+
+Great! now for Sacramento
+
+```{r}
+sacq <- read.csv("data/SacramentoUpstream/upsacQ.csv") %>% 
+  as.matrix() %>% 
+  unname()
+dim(sacq)
+
+Pepsi2 <- putQ(Pepsi1_ = Pepsi2, riverind = badQinds[4], qmatrix = sacq)
+
+Pepsi2[[badQinds[4]]][[1]][,,1] %>% str
+```
+
+plot again.
+
+```{r}
+plotQ(Pepsi2)
+```
+
+Awesome. Now put back into .mat form.
+
+```{r}
+Pepsi0 %>% str(2)
+
+Pepsi2.5 <- list(All.pepsi.data = Pepsi2)
+writeMat(con = "data/Pepsi_fixedup", data = Pepsi2.5)
+
+foo <- readMat("data/Pepsi_fixedup")
+str(foo, 1)
+```
+
+Not quite there...
+
+```{r}
+Pepsi3 <- setNames(Pepsi2, PepsiNames)
+# writeMat("pepsi3test.mat", all.pepsi.data = Pepsi3)
+
+# foo <- readMat("pepsi3test.mat")
+# str(foo, 1)
+```
+
+Some googling turned up a package on github
+
+```{r}
+devtools::install_github("schmidtchristoph/reach/reach")
+library(reach)
+?matlabExportList
+```
+
+Try it!
+
+```{r}
+Pepsi3.mat <- matlabExportList(Pepsi2)
+```
+
+Doesn't work with nested lists. I may have to go a different route, like writing to and reading from json.
+
+First tackle remaining items. 
+
+### 5. Kanawha widths
+
+```{r}
+list.files("data/Kanawha")
+kanawha <- readMat("data/Kanawha/Kanawha.mat")
+
+str(kanawha, 1)
+summary(unlist(kanawha$Wall))
+class(kanawha$Wall)
+summary(as.vector(kanawha$Wall))
+summary(as.vector(kanawha$Qall))
+```
+
+Not too large here...
+
+```{r}
+Pepsi %>% head()
+
+Pepsi %>% 
+  filter(name == "Kanawha") %>% 
+  summary()
+
+Pepsi %>% 
+  filter(name == "Kanawha") %>% 
+  plot(W ~ time, data = .)
+```
+
+```{r}
+badQrivs
+badQinds
+Pepsi3[[13]][[1]][,,1] %>% str
+
+Pepsi4 <- Pepsi3
+Pepsi4[[13]][[1]][,,1]$W <- t(kanawha$Wall)
+Pepsi4[[13]][[1]][,,1] %>% str
+```
+
+Good. Now Platte dA
+
+### 6. Platte problem areas
+
+
+```{r}
+list.files("data/Platte")
+platte <- readMat("data/Platte/format_platte.mat")
+plattru <- read.csv("data/Platte/truth.txt", sep = "\t")
+head(plattru)
+
+str(platte, 1)
+
+Pepsi %>% 
+  filter(name == "Platte") %>% 
+  summary()
+
+
+```
+
+I should come up with a function to read truth.txt files.
+
+But do this later. Easy fix first.
+
+```{r}
+?readLines
+foo <- readLines(con <- file("data/Platte/truth.txt"))
+close(con)
+head(foo)
+str(foo, 1)
+foo
+
+headLines <- grep("[[:alpha:]]", foo)
+headLines
+foo[headLines]
+
+headLines[c(6, 7)] # everything between here is dA.
+
+headLines[c(7, 11)] # everything between here is height.
+
+foo[38:51]
+```
+
+
+
+```{r}
+Pepsi %>% 
+  filter(name == "Platte") %>% 
+  select(time, xs, dA, H)
+```
+
+I should be able to do this all from Pepsi.
+
+```{r}
+calcdA <- function(width, height) {
+  rnks <- rank(height, na.last = TRUE)
+  ords <- order(height, na.last = TRUE)
+  width <- width[ords]
+  height <- height[ords]
+  dH <- c(0, diff(height))
+  delA <- width * dH
+  
+  out <- cumsum(delA)[rnks]
+  out
+}
+
+cdatest <- Pepsi %>% 
+  filter(name == "Po") %>% 
+  group_by(xs) %>% 
+  mutate(dA_myway = calcdA(W, H))
+plot(dA_myway ~ dA, cdatest)
+
+w1 <- cdatest$W[cdatest$xs == 1]
+h1 <- cdatest$H[cdatest$xs == 1]
+
+pladat <- Pepsi %>% 
+  filter(name == "Platte", xs == 14) %>% 
+  mutate(rand = rnorm(nrow(.))) %>% 
+  arrange(rand)
+
+pladat$H
+with(pladat, calcdA(W, H))
+
+```
+
+That appears to work. So I'll add that in after the fact. 
+
+### 7. Tanana Q
+
+```{r}
+list.files("data/Tanana")
+
+platru <- readLines(con <- file("data/Tanana/alltruth7.txt"))
+close(con)
+
+headLines <- grep("[[:alpha:]]", platru)
+headLines
+platru[headLines]
+
+headLines[c(5, 6)] # everything between here is Q.
+
+platru[8:14]
+plaq <- read.table(text = platru[8:14], sep = " ")
+str(plaq)
+plaqMat <- as.matrix(plaq)
+str(plaqMat)
+```
+
+```{r}
+badQrivs
+badQinds
+Pepsi4[[18]][[1]][,,1] %>% str
+```
+
+Alright, moving forward with readTruth function
+
+```{r}
+
+readTruth <- function
+truthfile <- "data/Tanana/alltruth7.txt"
+Aostart <- "A0"
+Aoend <- "qt"
+qstart <- "Qt"
+qend <- "dA"
+dAstart <- "dA"
+dAend <- "h,"
+hstart <- "h,"
+hend <- "W,"
+wstart <- "W,"
+wend <- NA
+tru <- readLines(con <- file(truthfile))
+close(con)
+
+readPiece <- function(startchars, endchars, trulines) {
+  snum <- grep(paste0("^", startchars), trulines) + 1
+  if (is.na(endchars)) {
+    numlines <- grep("^[[:digit:]]", trulines)
+    enum <- max(numlines)
+  } else {
+    enum <- grep(paste0("^", endchars), trulines) - 1
+  }
+  
+  stopifnot(length(enum) == 1 && length(snum) == 1)
+  
+  piece <- read.table(text = trulines[snum:enum])
+  out <- unname(as.matrix(piece))
+  out
+}
+
+qpiece <- readPiece(startchars = qstart, endchars = qend, trulines = tru)
+Aopiece <- readPiece(Aostart, Aoend, tru)
+hpiece <- readPiece(hstart, hend, tru)
+wpiece <- readPiece(wstart, wend, tru)
+
+wt <- as.data.frame(t(wpiece))
+ht <- as.data.frame(t(hpiece))
+dApiece <- mapply(calcdA, width = wt, height = ht) %>% 
+  t() %>% 
+  as.matrix() %>% 
+  unname()
+
+
+putPiece <- function(Pepsi1_, riverind, what, newpiece) {
+  if (!is(newpiece, "list"))
+    newpiece <- list(newpiece)
+  Pepsi1_[[riverind]][[1]][,,1][what] <- newpiece
+  out <- Pepsi1_
+}
+
+Pepsi5 <- putPiece(Pepsi1_ = Pepsi4, riverind = 18, 
+         what = c("W", "Q", "H", "Ao.calc", "dA"),
+         newpiece = list(wpiece, qpiece, hpiece, Aopiece, dApiece))
+
+str(Pepsi5[[18]][[1]][,,1])
+```
+
+Tanana has mismatched truth.txt, SWOTObs.txt dimensions.
+
+
+That about wraps things up. Next just need to tidy up code and put into a script. 
+
+
+### Plotting
+
+```{r}
+Pepsi_new %>% 
+  filter(name != "Kanawha", name != "Tanana") %>% 
+  group_by(name) %>% 
+  filter(xs == sample(1:max(xs))) %>% 
+  ungroup() %>% 
+  ggplot(aes(x = time, y = Q)) + 
+  geom_line() +
+  facet_wrap(~name, scales = "free")
+
+```
+
+
+
+Hmm. NA shouldn't be a river.
+
+```{r}
+# i <- 1
+Pepsi5[[i]][[1]][,,1] %>% str()
+i <- i + 1
+```
+
+
+There are issues with:
+
+- Kanawha (too many cross-sections)
+- MississippiUpstream
+- MississippiDownstream
+- SacramentoUpstream
+- Wabash
+- Tanana
+
+
+
+
+```{r}
+str(Pepsi9$Kanawha, 1)
+str(Pepsi6$Kanawha[[1]][,,1], 1)
+str(Pepsi1[[13]][[1]][,,1], 1)
+
+foo <- getPepsiData(Pepsi6$Kanawha)
+summary(foo$xs)
+unique(foo$xs)
+
+foo <- getQ(path = "data/Kanawha/Kanawha.mat", qname = "Qall")
+str(foo, 1)
+
+foo <- readMat("data/Kanawha/Kanawha.mat")
+
+list.files("data/StLawrenceDownstream")
+stlmat <- readMat("data/StLawrenceDownstream/downstreamData.mat")
+str(stlmat, 1)
+stltru <- readTruth("data/StLawrenceDownstream/truth.txt")
+str(stltru, 1)
+str(Pepsi6$StLawrenceDownstream[[1]][,,1], 1)
+
+stlpep <- getPepsiData(Pepsi6$StLawrenceDownstream)
+summary(stlpep)
+
+```
+
+### Plotting, revisited
+
+```{r}
+Pepsi_new %>% 
+  filter(name != "Kanawha", name != "Tanana") %>% 
+  group_by(name) %>% 
+  filter(xs == sample(1:max(xs))) %>% 
+  ungroup() %>% 
+  ggplot(aes(x = time, y = Q)) + 
+  geom_line() +
+  facet_wrap(~name, scales = "free")
+
+```
+
+```{r}
+Pepsi_new %>% 
+  filter(name != "Kanawha", name != "Tanana") %>% 
+  group_by(name) %>% 
+  filter(xs == sample(1:max(xs), 1)) %>% 
+  ungroup() %>% 
+  # select(H, dA, name, xs) %>% 
+  ggplot(aes(x = H, y = dA)) + 
+  geom_line() +
+  facet_wrap(~name, scales = "free")
+
+```
+
+
+```{r}
+Pepsi_new %>% 
+  filter(name == "SacramentoUpstream") %>% 
+  # group_by(name) %>% 
+  filter(xs == sample(1:max(xs), 15)) %>% 
+  # ungroup() %>% 
+  # select(H, dA, name, xs) %>% 
+  ggplot(aes(x = H, y = dA)) + 
+  geom_line() +
+  facet_wrap(~xs, scales = "free")
+
+```
+
+```{r}
+Pepsi_new %>% 
+  filter(name == "SacramentoUpstream") %>% 
+  # group_by(name) %>% 
+  filter(xs == sample(1:max(xs), 15)) %>% 
+  # ungroup() %>% 
+  # select(H, dA, name, xs) %>% 
+  ggplot(aes(x = W, y = H)) + 
+  geom_line() +
+  facet_wrap(~xs, scales = "free")
+
+```
+
+
+Huh.
+
+```{r}
+p1 <- getPepsiData(Pepsi1[[grep("ntoDown", PepsiNames)]])
+glimpse(p1)
+
+p1 %>% 
+  filter(xs == sample(1:max(xs))) %>% 
+  # ungroup() %>% 
+  ggplot(aes(x = H, y = dA)) + 
+  geom_line() +
+  facet_wrap(~name, scales = "free")
+
+wfoo <- Pepsi1[[1]][[1]][,,1]$W[1,]
+dafoo <- Pepsi1[[1]][[1]][,,1]$dA[1,]
+
+plot(wfoo, dafoo)
+```
+
+I may need to fix up Sacramento dA.
+
+```{r}
+list.files("data/SacramentoUpstream")
+list.files("data/SacramentoDownstream")
 
 ```
 

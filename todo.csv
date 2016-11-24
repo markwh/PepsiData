@@ -1,2 +1,4 @@
 "itemText","timeCreated","status","timeCompleted","isCompleted","itemID","comment"
 "make dataCheck function",2016-11-21 14:32:22,"incomplete",NA,FALSE,1,""
+"dA caclulated my way will result in different Ao values. Fix this.",2016-11-23 12:04:51,"incomplete",NA,FALSE,2,""
+"figure out dimension mismatch in Kanawhat, StLawrenceDownstream",2016-11-23 14:48:55,"incomplete",NA,FALSE,3,""
