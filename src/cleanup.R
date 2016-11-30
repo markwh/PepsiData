@@ -65,6 +65,12 @@ plattru <- readTruth("data/Platte/truth.txt")
 Pepsi5 <- putPiece(Pepsi4, grep("Platte", PepsiNames), what = "dA", 
                    newpiece = plattru$dA)
 
+## 7. St. Lawrence downstream
+
+sldtru <- readTruth("data/StLawrenceDownstream/truth.txt")
+plot(sldtru$W[4,])
+
+
 # finish munging Pepsi data frame
 
 Pepsi_new <- lapply(Pepsi5, 
@@ -99,3 +105,4 @@ write(Pepsi.json, file = "Pepsi.json")
 lapply(Pepsi9$Platte, dim)
 
 cache("Pepsi_new")
+
