@@ -15,11 +15,3 @@ Pepsi <- lapply(Pepsi1[!nulls],
   arrange(name, xs, time)
 
 
-
-
-filter(Pepsi, name == "MississippiUpstream") %>% 
-  summary
-
-library(R.matlab)
-data1 <- readMat("data/MississippiUpstream/UpperMiss.mat")
-str(data1)
