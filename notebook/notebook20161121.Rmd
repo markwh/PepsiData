@@ -558,3 +558,20 @@ list.files("data/SacramentoDownstream")
 
 ```
 
+
+
+Looks like Q is being transferred wrong.
+
+```{r}
+foo <- getPepsiData(Pepsi6$Po)
+plot(Q ~ time, foo)
+```
+
+That's good.
+
+```{r}
+Pepsi_new %>% 
+  filter(name == "Po") %>% 
+  plot(Q ~ time, .)
+```
+

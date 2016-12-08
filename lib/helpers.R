@@ -122,7 +122,7 @@ readTruth <- function(truthfile,
     t() %>% 
     as.matrix() %>% 
     unname()
-  out <- list(W = wpiece, Q = qpiece, Ao.calc = t(Aopiece), dA = dApiece)
+  out <- list(W = wpiece, Q = qpiece, h = hpiece, Ao.calc = t(Aopiece), dA = dApiece)
   out
 }
 

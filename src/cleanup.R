@@ -65,6 +65,43 @@ plattru <- readTruth("data/Platte/truth.txt")
 Pepsi5 <- putPiece(Pepsi4, grep("Platte", PepsiNames), what = "dA", 
                    newpiece = plattru$dA)
 
+## 7. StLawrence Downstream
+
+stldsw <- Pepsi5$StLawrenceDownstream[[1]][,,1]$W[1,]
+plot(stldsw)
+badcols <- which(stldsw < 10000)
+badvars <- c("W", "Q", "H", "S", "dA") # all the parts that have time indices
+fixedStl <- lapply(Pepsi5$StLawrenceDownstream[[1]][,,1][badvars],
+                   `[`, , -badcols)
+plot(fixedStl$H[1,])
+
+Pepsi5$StLawrenceDownstream[[1]][,,1][badvars] <- fixedStl
+
+
+## 8. StLawrence Upstream
+
+stlusw <- Pepsi5$StLawrenceUpstream[[1]][,,1]$W[1,]
+plot(stlusw)
+stlush <- Pepsi5$StLawrenceUpstream[[1]][,,1]$H[1,]
+plot(stlush)
+badcols <- which(stlush[1:50] < 5.5)
+badvars <- c("W", "Q", "H", "S", "dA") # all the parts that have time indices
+fixedStl <- lapply(Pepsi5$StLawrenceUpstream[[1]][,,1][badvars],
+                   `[`, , -badcols)
+plot(fixedStl$H[1,])
+
+Pepsi5$StLawrenceUpstream[[1]][,,1][badvars] <- fixedStl
+
+hp <- Pepsi5$StLawrenceUpstream[[1]][,,1]$H %>% 
+  t() %>% 
+  as.data.frame()
+wp <- Pepsi5$StLawrenceUpstream[[1]][,,1]$W %>% 
+  t() %>% 
+  as.data.frame()
+dAp <- mapply(calcdA, width = wp, height = hp) %>% 
+  as.matrix() %>% 
+  t()
+
 # finish munging Pepsi data frame
 
 Pepsi_new <- lapply(Pepsi5, 
@@ -94,7 +131,7 @@ Pepsi9 <- lapply(Pepsi8, fixPiece)
 
 # Write to json
 Pepsi.json <- jsonlite::toJSON(Pepsi9, auto_unbox = TRUE)
-write(Pepsi.json, file = "Pepsi.json")
+write(Pepsi.json, file = "data/Pepsi.json")
 
 lapply(Pepsi9$Platte, dim)
 
